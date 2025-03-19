@@ -1,0 +1,9 @@
+.vscode
+*.egg-info
+pixelcnn_runs
+pixelcnn_512
+runs
+outputs
+scripts
+*.txt
+data
