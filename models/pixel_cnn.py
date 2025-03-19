@@ -72,7 +72,7 @@ class PixelCNN(torch.nn.Module):
                  input_channels=1,
                  kernel_size=3,
                  padding=1,
-                 hidden_channels=512,
+                 hidden_channels=256,
                  num_layers=16,
                  residual_connection_freq=4):
         super().__init__()

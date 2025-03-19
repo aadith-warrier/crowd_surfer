@@ -24,12 +24,12 @@ dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=0)
 
 vqvae = VQVAE()
 vqvae = vqvae.to(device)
-vqvae.load_state_dict(torch.load('checkpoints/state_dict/vqvae.pth'))
+vqvae.load_state_dict(torch.load('checkpoints/state_dict/vqvae.pth', map_location=device))
 vqvae.eval()
 
 pixelcnn = FusedModel()
 pixelcnn = pixelcnn.to(device)
-pixelcnn.load_state_dict(torch.load('checkpoints/state_dict/pixelcnn.pth'))
+pixelcnn.load_state_dict(torch.load('checkpoints/state_dict/pixelcnn.pth', map_location=device))
 pixelcnn.eval()
 
 for i, batch in enumerate(tqdm(dataloader)):
@@ -56,5 +56,5 @@ for i, batch in enumerate(tqdm(dataloader)):
         # print("VQVAE idx:", vqvae_idx)
     
     gt_traj = coeffecients
-    save_pixelcnn(occupancy_grid, dynamic_obstacles, gt_traj, pred_traj, filename=f'outputs/pixelcnn/{i}.png')
+    # save_pixelcnn(occupancy_grid, dynamic_obstacles, gt_traj, pred_traj, filename=f'outputs/pixelcnn/{i}.png')
     # exit()

@@ -7,3 +7,5 @@ outputs
 scripts
 *.txt
 data
+__pycache__
+bags
