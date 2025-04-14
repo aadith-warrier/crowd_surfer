@@ -2,8 +2,6 @@ import torch
 from torchinfo import summary
 from torch import nn
 
-from models.observation_embedding import ObservationEmbedding
-
 class MaskedConv1D(torch.nn.Module):
     MASK_TYPES = ["A", "B"]
 
