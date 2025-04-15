@@ -5,6 +5,8 @@ import jax.random as random
 
 import numpy as np 
 
+import torch
+
 from bernstein_basis import bernstein10
 
 from tensorboardX import SummaryWriter
@@ -38,6 +40,15 @@ class Obstacles():
         
         self.num_obstacles = 40
         self.num_obstacles_proj = 10
+
+        self.static_x = torch.tensor(static_x)
+        self.static_y = torch.tensor(static_y)
+
+        self.dynamic_x = torch.tensor(dynamic_x)
+        self.dynamic_y = torch.tensor(dynamic_y)
+
+        self.dynamic_vx = torch.tensor(dynamic_vx)
+        self.dynamic_vy = torch.tensor(dynamic_vy)
 
         self.timesteps = jnp.linspace(0, time_horizon, num_steps)
         self.obstacle_trajectory_x = static_x[:, None] * jnp.ones((1, num_steps))

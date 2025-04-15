@@ -1,7 +1,7 @@
 import numpy as np
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
+from matplotlib.patches import Ellipse, Rectangle
 
 def plot_plan(start, goal, obstacles, trajectory_x, trajectory_y, filename):
 
@@ -16,20 +16,20 @@ def plot_plan(start, goal, obstacles, trajectory_x, trajectory_y, filename):
         # Create the figure and axes
     fig, ax = plt.subplots(figsize=(8, 8))
 
-    ellipse_start = Ellipse((start.x, start.y), width=0.15, height=0.15, edgecolor='green', facecolor='green')
-    ellipse_final = Ellipse((goal.x, goal.y), width=0.15, height=0.15, edgecolor='red', facecolor='red')
+    ellipse_start = Rectangle((start.x, start.y), width=0.15, height=0.15, edgecolor='green', facecolor='green')
+    ellipse_final = Rectangle((goal.x, goal.y), width=0.15, height=0.15, edgecolor='red', facecolor='red')
 
     ax.add_patch(ellipse_start)
     ax.add_patch(ellipse_final)
 
     # Plot static obstacles as ellipses (size 0.05m by 0.05m)
     for x, y in zip(static_x, static_y):
-        ellipse = Ellipse((x, y), width=0.5, height=0.5, edgecolor='black', facecolor='black')
+        ellipse = Rectangle((x, y), width=0.5, height=0.5, edgecolor='black', facecolor='black')
         ax.add_patch(ellipse)
     
     # Plot dynamic obstacles as ellipses (size 0.05m by 0.05m)
     for x, y in zip(dynamic_x, dynamic_y):
-        ellipse = Ellipse((x, y), width=0.68, height=0.68, edgecolor='orange', facecolor='none', lw=2)
+        ellipse = Rectangle((x, y), width=0.68, height=0.68, edgecolor='orange', facecolor='none', lw=2)
         ax.add_patch(ellipse)
     
     #plot the trajectory
