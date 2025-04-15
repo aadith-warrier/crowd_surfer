@@ -13,8 +13,8 @@ num_obstacles = 10
 xmin, xmax = 0, 10
 ymin, ymax = 0, 10
 
-state_initial = State(x=0.5, y=1, vx=0, vy=0, ax=0, ay=0)
-state_goal = State(x=5, y=8)
+state_initial = State(x=5, y=5, vx=0, vy=0, ax=0, ay=0)
+state_goal = State(x=9.5, y=9.5)
 
 def sample_wall(x0, y0, x1, y1, spacing=0.5):
     """Returns a list of (x, y) points sampled along a wall from (x0, y0) to (x1, y1)."""
@@ -24,29 +24,60 @@ def sample_wall(x0, y0, x1, y1, spacing=0.5):
     ys = np.linspace(y0, y1, n_points)
     return list(zip(xs, ys))
 
-# Wall definitions (line segments)
-wall_0 = sample_wall(0, 4, 3.5, 4)
-wall_1 = sample_wall(5, 0, 5, 4)
-wall_2 = sample_wall(7, 2, 10, 2)
-wall_3 = sample_wall(6, 5, 6, 10)
-wall_4 = sample_wall(2, 6, 2, 10)
+def get_occupancy_grid(grid_size=60, cell_size=0.1, num_obstacles=10, seed=None):
+    """
+    Creates a 60x60 occupancy grid for a 10x10 meter environment.
+    
+    Returns:
+        occupancy_grid (np.ndarray): grid with values
+            0 = free space,
+            1 = static obstacle (wall),
+            2 = dynamic obstacle
+    """
+    if seed is not None:
+        np.random.seed(seed)
 
-# Combine all walls into one list of static obstacle positions
-all_walls = wall_0 + wall_1 + wall_2 + wall_3 + wall_4
+    # Define walls (static obstacles)
+    wall_0 = sample_wall(0, 4, 3.5, 4)
+    wall_1 = sample_wall(5, 0, 5, 4)
+    wall_2 = sample_wall(7, 2, 10, 2)
+    wall_3 = sample_wall(8, 7, 8, 10)
+    wall_4 = sample_wall(2, 6, 2, 10)
+    all_walls = wall_0 + wall_1 + wall_2 + wall_3 + wall_4
 
-# Separate into x and y coordinates for compatibility
-static_obstacles_x = jnp.asarray([x for x, y in all_walls])
-static_obstacles_y = jnp.asarray([y for x, y in all_walls])
+    # Initialize occupancy grid
+    grid = np.zeros((grid_size, grid_size), dtype=np.uint8)
 
-# Dynamic obstacles will be sampled similarly to static obstacles
-dynamic_obstacles_x = jnp.asarray(xmin + (xmax - xmin) * np.random.uniform(0, 1, num_obstacles))
+    # Mark static obstacles as 1
+    for x, y in all_walls:
+        i = int(y / cell_size)
+        j = int(x / cell_size)
+        if 0 <= i < grid_size and 0 <= j < grid_size:
+            grid[i, j] = 1
 
-dynamic_obstacles_y = jnp.asarray(ymin + (ymax - ymin) * np.random.uniform(0, 1, num_obstacles))
+    # Dynamic obstacle positions
+    xmin, xmax = 0, 10
+    ymin, ymax = 0, 10
+    dynamic_obstacles_x = xmin + (xmax - xmin) * np.random.uniform(0, 1, num_obstacles)
+    dynamic_obstacles_y = ymin + (ymax - ymin) * np.random.uniform(0, 1, num_obstacles)
 
-# Assign random velocities to dynamic obstacles
-dynamic_obstacles_vx = jnp.asarray(0.5 * (2 * np.random.uniform(0, 1, num_obstacles) - 1))  # Random velocity between -0.5 and 0.5)
+    # Optional: dynamic velocities (not used in grid)
+    dynamic_obstacles_vx = 0.5 * (2 * np.random.uniform(0, 1, num_obstacles) - 1)
+    dynamic_obstacles_vy = 0.5 * (2 * np.random.uniform(0, 1, num_obstacles) - 1)
 
-dynamic_obstacles_vy = jnp.asarray(0.5 * (2 * np.random.uniform(0, 1, num_obstacles) - 1))  # Random velocity between -0.5 and 0.5)
+    # Mark dynamic obstacles as 2
+    for x, y in zip(dynamic_obstacles_x, dynamic_obstacles_y):
+        i = int(y / cell_size)
+        j = int(x / cell_size)
+        if 0 <= i < grid_size and 0 <= j < grid_size:
+            grid[i, j] = 2
+
+    static_obstacles_x = [x for (x,y) in all_walls]
+    static_obstacles_y = [y for (x,y) in all_walls]
+
+    return grid, all_walls, jnp.asarray(static_obstacles_x), jnp.asarray(static_obstacles_y), jnp.asarray(dynamic_obstacles_x), jnp.asarray(dynamic_obstacles_y), jnp.asarray(dynamic_obstacles_vx), jnp.asarray(dynamic_obstacles_vy)
+
+grid, walls, static_obstacles_x, static_obstacles_y, dynamic_obstacles_x, dynamic_obstacles_y, dynamic_obstacles_vx, dynamic_obstacles_vy = get_occupancy_grid()
 
 print("Static Obstacles X:", static_obstacles_x.shape)
 print("Static Obstacles Y:", static_obstacles_y.shape)
@@ -71,7 +102,7 @@ num = 100
 num_batch = 110
 maxiter = 1
 maxiter_mpc = 1
-maxiter_cem = 25
+maxiter_cem = 50
 weight_track = 0.001
 weight_smoothness = 1
 way_point_shape = 1000
