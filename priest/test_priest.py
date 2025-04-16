@@ -1,8 +1,8 @@
 from os import wait
 import numpy as np 
 import jax.numpy as jnp 
-from priest import State, Obstacles, Priest 
-from viz_utils import *
+from priest.priest import State, Obstacles, Priest 
+from priest.viz_utils import *
 
 # Number of obstacles
 num_obstacles = 25

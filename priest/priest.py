@@ -7,14 +7,14 @@ import numpy as np
 
 import torch
 
-from bernstein_basis import bernstein10
+from priest.bernstein_basis import bernstein10
 
 from tensorboardX import SummaryWriter
 
 import os
 import shutil
 
-from viz_utils import *
+from priest.viz_utils import *
 
 class State():
     def __init__(self, x, y, vx=None, vy=None, ax=None, ay=None, normal_x=None, normal_y=None):

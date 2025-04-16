@@ -2,7 +2,7 @@ import numpy as np
 import jax.numpy as jnp
 from functools import partial
 from jax import jit, random
-import bernstein_coeff_order10_arbitinterval
+import priest.bernstein_coeff_order10_arbitinterval as bernstein_coeff_order10_arbitinterval
 import jax
 from jax import lax
 import jax.lax as lax
