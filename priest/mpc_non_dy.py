@@ -143,7 +143,7 @@ class batch_crowd_nav():
         
 
 
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def path_spline(self, x_waypoint, y_waypoint):
 
         x_diff = jnp.diff(x_waypoint)
@@ -157,7 +157,7 @@ class batch_crowd_nav():
         return arc_length, arc_vec, x_diff, y_diff
 
 
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def compute_contouring_error(self, x_waypoint, y_waypoint, x_target_point, y_target_point, arc_vec):
 
         dist = jnp.sqrt( (x_waypoint - x_target_point)**2 + (y_waypoint - y_target_point)**2 )
@@ -171,7 +171,7 @@ class batch_crowd_nav():
         return arc_point, x_project, y_project
 
     #######################################################
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def compute_obs_traj_prediction(self, x_obs_init_dy, y_obs_init_dy, vx_obs_dy, vy_obs_dy, x_obs_init, y_obs_init, vx_obs, vy_obs, x_init, y_init):
 
         x_temp = x_obs_init + vx_obs * self.tot_time[:,jnp.newaxis]
@@ -199,7 +199,7 @@ class batch_crowd_nav():
 
     ###############################################################
 
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def compute_boundary_vec(self, initial_state, x_fin, y_fin):		
 
         x_init, y_init, vx_init, vy_init, ax_init, ay_init = initial_state
@@ -222,7 +222,7 @@ class batch_crowd_nav():
         return b_eq_x, b_eq_y
     ###########################################################
 
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def compute_warm_traj(self, initial_state, v_des, x_waypoint, y_waypoint, arc_vec, x_diff, y_diff):
 
         x_init, y_init, vx_init, vy_init, ax_init, ay_init = initial_state
@@ -289,7 +289,7 @@ class batch_crowd_nav():
 
     #################################################
 
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def compute_traj_guess(self, initial_state, x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_dy, y_obs_trajectory_dy, v_des, x_waypoint, y_waypoint, arc_vec, x_guess_per , y_guess_per, x_diff, y_diff):
 
         x_init, y_init, vx_init, vy_init, ax_init, ay_init = initial_state
@@ -457,7 +457,7 @@ class batch_crowd_nav():
         return sol_x_bar, sol_y_bar, x_guess, y_guess,  xdot_guess, ydot_guess, xddot_guess, yddot_guess,c_mean, c_cov, x_fin_path, y_fin_path
 
     ##################################################
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def compute_projection(self, x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_dy, y_obs_trajectory_dy, d_obs, alpha_obs, alpha_a, d_a, alpha_v, d_v, lamda_x, lamda_y, b_eq_x, b_eq_y, sol_x_bar, sol_y_bar ):
 
         b_projection_x = sol_x_bar
@@ -498,7 +498,7 @@ class batch_crowd_nav():
         return primal_sol_x, primal_sol_y, x, y, xdot, ydot, xddot, yddot
 
     ########################################################
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def initial_alpha_d(self, x_guess, y_guess, xdot_guess, ydot_guess, xddot_guess, yddot_guess, x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_dy, y_obs_trajectory_dy, lamda_x, lamda_y):
 
         wc_alpha_temp = (x_guess -jnp.vstack(( x_obs_trajectory[:,jnp.newaxis], x_obs_trajectory_dy[:,jnp.newaxis] )) )
@@ -559,7 +559,7 @@ class batch_crowd_nav():
         return alpha_obs, d_obs, alpha_a, d_a, alpha_v, d_v, lamda_x, lamda_y
 
     ##############################3
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def compute_alph_d_proj(self, x, y, xdot, ydot, xddot, yddot, x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_dy, y_obs_trajectory_dy, lamda_x, lamda_y, d_a_per, alpha_a_per, alpha_v_per):
         
         wc_alpha_temp = (x -jnp.vstack(( x_obs_trajectory[:,jnp.newaxis], x_obs_trajectory_dy[:,jnp.newaxis] )) )
@@ -631,7 +631,7 @@ class batch_crowd_nav():
         return alpha_obs, d_obs, alpha_a, d_a, alpha_v, d_v, lamda_x, lamda_y, res_norm_batch
     #################################################
 
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def compute_projection_sampling(self, key, sol_x_bar, sol_y_bar, x_obs_trajectory_proj, y_obs_trajectory_proj, x_obs_trajectory_dy, y_obs_trajectory_dy, lamda_x, lamda_y, x_guess, y_guess,  xdot_guess, ydot_guess, xddot_guess, yddot_guess, initial_state, x_fin, y_fin ):
 
         b_eq_x, b_eq_y = self.compute_boundary_vec(initial_state, x_fin, y_fin)
@@ -656,7 +656,7 @@ class batch_crowd_nav():
         return c_x, c_y, x, xdot, xddot, y, ydot, yddot, res_norm_batch
 
 
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def compute_cost_batch(self, x, y, xdot, ydot, xddot, yddot, x_project, y_project, res_norm_batch, x_fin, y_fin,  x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_dy, y_obs_trajectory_dy):
 
         wc_alpha_temp = (x-x_obs_trajectory[:,jnp.newaxis])
@@ -692,7 +692,7 @@ class batch_crowd_nav():
         return cost_batch
     #################################
 
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def comp_prod(self, diffs, d ):
 
         term_1 = jnp.expand_dims(diffs, axis = 1)
@@ -703,7 +703,7 @@ class batch_crowd_nav():
         return prods 
 
     ###########################################################
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def compute_shifted_samples(self, key, cost_batch, c_x_ellite, c_y_ellite, x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_dy, y_obs_trajectory_dy, i, c_mean_prev, c_cov_prev):
 
         c_ellite = jnp.hstack(( c_x_ellite, c_y_ellite  ))
@@ -771,7 +771,7 @@ class batch_crowd_nav():
         return sol_x_bar, sol_y_bar, x_guess, y_guess, xdot_guess, ydot_guess, xddot_guess, yddot_guess, c_mean, c_cov
         
 
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def compute_controls(self, c_x_best, c_y_best,):
 
         xdot_best = jnp.dot(self.Pdot_up_jax, c_x_best)
@@ -792,7 +792,7 @@ class batch_crowd_nav():
        
         return vx_control, vy_control, ax_control, ay_control, norm_v_t, angle_v_t
 
-    @partial(jit, static_argnums=(0,))
+    @partial(jit, static_argnums=(0,), backend='gpu')
     def compute_cem(self, key, initial_state, x_fin, y_fin, lamda_x, lamda_y, x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_proj, y_obs_trajectory_proj,  x_obs_trajectory_dy, y_obs_trajectory_dy, sol_x_bar, sol_y_bar, x_guess, y_guess,  xdot_guess, ydot_guess, xddot_guess, yddot_guess, x_waypoint,  y_waypoint, arc_vec, c_mean, c_cov):
         
         c_mean_prev = c_mean

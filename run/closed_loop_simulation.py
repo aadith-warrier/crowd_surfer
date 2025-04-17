@@ -32,8 +32,8 @@ class ClosedLoopSimulation():
         rospy.Subscriber('/pedsim_visualizer/tracked_persons', TrackedPersons, self.marker_callback)
         rospy.Subscriber('/crowdsurfer_goal', PoseStamped, self.goal_callback)
         rospy.Subscriber('/odom', Odometry, self.update_odometry)
-        tf_buffer = tf2_ros.Buffer()
-        tf_listener = tf2_ros.TransformListener(tf_buffer)
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         #publishers
         self.occupancy_grid_publisher = rospy.Publisher('/grid_map', OccupancyGrid)
@@ -147,8 +147,16 @@ class ClosedLoopSimulation():
         if not hasattr(self, 'dynamic_obstacles'):
             rospy.logerr("Not recieved dynamic obstacles")
             return 0, 0, 0, 0
-
-        obstacles = Obstacles(self.static_obstacles[:, 0], self.static_obstacles[:, 1], self.dynamic_obstacles[4, 0, :].numpy(), self.dynamic_obstacles[4, 1, :].numpy(), self.dynamic_obstacles[4, 2, :].numpy(), self.dynamic_obstacles[4, 3, :].numpy())
+        try:
+            obstacles = Obstacles(self.static_obstacles[:, 0], self.static_obstacles[:, 1], self.dynamic_obstacles[4, 0, :].numpy(), self.dynamic_obstacles[4, 1, :].numpy(), self.dynamic_obstacles[4, 2, :].numpy(), self.dynamic_obstacles[4, 3, :].numpy())
+        except:
+            rospy.logerr("Slicing error in obstacle dataclass.")
+            print(self.static_obstacles[:, 0])
+            print(self.static_obstacles[:, 1])
+            print(self.dynamic_obstacles[4, 0, :].numpy())
+            print(self.dynamic_obstacles[4, 1, :].numpy())
+            print(self.dynamic_obstacles[4, 2, :].numpy())
+            print(self.dynamic_obstacles[4, 3, :].numpy())
         c_x, c_y, x, y, x_vqvae, y_vqvae, vx_control, vy_control, ax_control, ay_control, norm_v_t, angle_v_t = self.planner.generate_trajectory(self.occupancy_grid, state_initial, state_final, obstacles)
 
         x = np.asarray(x)
@@ -211,6 +219,7 @@ class ClosedLoopSimulation():
         return angle
 
     def goal_callback(self, global_goal_msg):
+        rospy.loginfo("Recieved goal")
         self.goal_reached = False
         try:
             transform = self.tf_buffer.lookup_transform(
@@ -229,7 +238,7 @@ class ClosedLoopSimulation():
             rospy.loginfo(f"Goal transformed to base_link frame: {self.local_goal_x}, {self.local_goal_y}")
 
         except tf2_ros.TransformException as e:
-            rospy.logwarn(f"Could not transform goal: {e}")
+            rospy.logfatal(f"Could not transform goal: {e}")
             return
 
     def plan(self):
@@ -242,8 +251,17 @@ class ClosedLoopSimulation():
                 rospy.logerr("Not recievded current position y")
                 self.publish_zero_cmd_vel()
                 return
-            if not hasattr(self, global_goal_x):
+            if not hasattr(self, 'global_goal_x'):
                 rospy.logerr("Not recieved goal position x")
+                return
+            if not hasattr(self, 'global_goal_y'):
+                rospy.logerr("Note recieved goal psoition y")
+                return
+            if not hasattr(self, 'local_goal_x'):
+                rospy.logerr("Not recieved local goal x")
+                return
+            if not hasattr(self, 'local_goal_y'):
+                rospy.logerr("Not recieved local goal y")
                 return
 
             current_x = self.current_x
