@@ -1,6 +1,6 @@
 import numpy as np 
 import jax.numpy as jnp 
-from priest.priest import State, Obstacles, Priest 
+from priest.priest_core import State, Obstacles, Priest 
 from priest.viz_utils import *
 import priest.mpc_non_dy as mpc_non_dy
 from jax import random
@@ -110,12 +110,12 @@ class Planner():
         self.pixelcnn.eval()
 
     def compute_waypoints(self, c_x, c_y, P):
-        c_x = jnp.asarray(c_x.detach().numpy().T)
-        c_y = jnp.asarray(c_y.detach().numpy().T)
+        c_x = jnp.asarray(c_x.detach().cpu().numpy().T)
+        c_y = jnp.asarray(c_y.detach().cpu().numpy().T)
         x = jnp.dot(P, c_x)
         y = jnp.dot(P, c_y)
-        return x+5, y+5
-    
+        return x, y
+
     def generate_trajectory(self, occupancy_grid, state_initial: State, state_goal:State, obstacles: Obstacles):
         
         rospy.loginfo("Starting Trajectory Generation")
@@ -131,14 +131,14 @@ class Planner():
                                           dynamic_obstacles_vx_t, 
                                           dynamic_obstacles_vy_t), dim=2).permute(1, 2, 0)
 
-        heading = torch.atan2(torch.tensor([state_goal.y - state_initial.y]), torch.tensor([state_goal.x - state_initial.x]))
+        heading = torch.atan2(torch.tensor([state_goal.y - state_initial.y]), torch.tensor([state_goal.x - state_initial.x])).unsqueeze(0).to(self.device)
 
-        occupancy_grid = torch.tensor(occupancy_grid).unsqueeze(0).unsqueeze(0).float()
-        dynamic_obstacles = dynamic_obstacles.unsqueeze(0).float()
-        heading = heading.unsqueeze(0).float()
+        occupancy_grid = torch.tensor(occupancy_grid).unsqueeze(0).unsqueeze(0).float().to(self.device)
+        dynamic_obstacles = dynamic_obstacles.unsqueeze(0).float().to(self.device)
+
         assert occupancy_grid.shape == (1, 1, 60, 60), f'Expected shape [1, 1, 60, 60] got {occupancy_grid.shape}'
         assert dynamic_obstacles.shape == (1, 5, 4, 10), f'Expected shape [1, 5, 4, 10] got {dynamic_obstacles.shape}'
-        assert heading.shape == (1, 1), f'Expected shape [1, 1] got {heading.shape}'
+        #assert heading.shape == (1, 1), f'Expected shape [1, 1] got {heading.shape}'
 
         pixelcnn_embedding = self.pixelcnn(occupancy_grid, dynamic_obstacles, heading).permute(0, 2, 1)
         
@@ -188,7 +188,8 @@ class Planner():
         rospy.loginfo("Finished Trajectory Generation")
         # plot_plan(state_initial, state_goal, obstacles, x_guess_per, y_guess_per, filename='crowdsurfer_priest/best_traj.png')
 
-        return c_x_best, c_y_best, x_best, y_best, x_vqvae, y_vqvae
+        vx_control, vy_control, ax_control, ay_control, norm_v_t, angle_v_t = prob.compute_controls(c_x_best*0.8, c_y_best*0.8)
+        return c_x_best, c_y_best, x_best, y_best, x_vqvae, y_vqvae, vx_control, vy_control, ax_control, ay_control, norm_v_t, angle_v_t
 
 if __name__ == "__main__":
     # Number of obstacles

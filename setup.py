@@ -5,6 +5,7 @@ setup(
     version='2.0.0',
     packages=['dataloaders',
               'models',
+              'priest',
               'train',
               'viz',
               'utils'],

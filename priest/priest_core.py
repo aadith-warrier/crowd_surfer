@@ -9,8 +9,6 @@ import torch
 
 from priest.bernstein_basis import bernstein10
 
-from tensorboardX import SummaryWriter
-
 import os
 import shutil
 
@@ -133,7 +131,6 @@ class Priest():
         # Always remove old logs on each run
         if os.path.exists(log_dir):
             shutil.rmtree(log_dir)
-        self.logger = SummaryWriter(log_dir)
 
     def get_intermediate_position(self, split, x_waypoints, y_waypoints, x_diff, y_diff, cumulative_segment_lengths):
         distance = self.velocity_desired*self.time_horizon*split #distance travelled in the time horizon 
@@ -383,17 +380,6 @@ class Priest():
             alpha_velocity = jnp.atan2(ydot, xdot)
             alpha_acceleration = jnp.atan2(yddot, xddot)
 
-            self.logger.add_scalar("alpha/obstacles", jnp.mean(alpha_obstacles))
-            self.logger.add_scalar("alpha/velocity", jnp.mean(alpha_velocity))
-            self.logger.add_scalar("alpha/acceleration", jnp.mean(alpha_acceleration))
-
-            d_obstacles = jnp.maximum(1, (A*(delta_x)*jnp.cos(alpha_obstacles) + B*(delta_y)*jnp.sin(alpha_obstacles))/((A*jnp.cos(alpha_obstacles))**2 + (B*jnp.cos(alpha_obstacles))**2)) #this could be wrong
-            d_velocity = jnp.minimum(1, xdot*jnp.cos(alpha_velocity) + ydot*jnp.sin(alpha_velocity))
-            d_acceleration = jnp.minimum(1, xddot*jnp.cos(alpha_acceleration) + yddot*jnp.sin(alpha_acceleration))
-
-            self.logger.add_scalar("d/obstacles", jnp.mean(d_obstacles))
-            self.logger.add_scalar("d/velocity", jnp.mean(d_velocity))
-            self.logger.add_scalar("d/acceleration", jnp.mean(d_acceleration))
 
             residuals_obstacles_x = ((delta_x) - d_obstacles*A*jnp.cos(alpha_obstacles)).reshape(-1, 1000)
             residuals_obstacles_y = ((delta_y) - d_obstacles*B*jnp.sin(alpha_obstacles)).reshape(-1, 1000)
@@ -411,9 +397,6 @@ class Priest():
             residual_norm_velocity = jnp.linalg.norm(jnp.hstack((residuals_velocity_x, residuals_velocity_y)), axis=1)
             residual_norm_acceleration = jnp.linalg.norm(jnp.hstack((residuals_acceleration_x, residuals_acceleration_y)), axis=1)
 
-            self.logger.add_scalar("residual_norm/acceleration", jnp.mean(residual_norm_acceleration), i)
-            self.logger.add_scalar("residual_norm/velocity", jnp.mean(residual_norm_velocity), i)
-            self.logger.add_scalar("residual_norm/obstacle", jnp.mean(residual_norm_obstacle), i)
             residual_norm = residual_norm_obstacle + residual_norm_velocity #+ residual_norm_acceleration
 
         return c_x, c_y, x, y, xdot, ydot, xddot, yddot, residual_norm
@@ -437,14 +420,8 @@ class Priest():
         smoothness = jnp.sqrt(xddot**2 + yddot**2).sum(-1)
         track = jnp.linalg.norm(x - x_project, axis=1) + jnp.linalg.norm(y - y_project, axis=1) 
 
-        self.logger.add_scalar("cost/clearance", jnp.mean(clearance))
-        self.logger.add_scalar("cost/obstacle", jnp.mean(obstacle))
-        self.logger.add_scalar("cost/smoothness", jnp.mean(smoothness))
-        self.logger.add_scalar("cost/track", jnp.mean(track))
-
         cost = self.clearance_weight*clearance + self.obstacle_weight*obstacle + self.smoothness_weight*smoothness + self.track_weight*track + self.residual_norm_weight*residual_norm
 
-        self.logger.add_scalar("cost", jnp.mean(cost))
         return cost 
     
     def update_distribution(self, c_elite_x, c_elite_y, c_mean, c_cov, cost):

@@ -14,10 +14,10 @@ sleep 3
 tmux new-window -t $SESSION_NAME -n "rviz"
 tmux send-keys -t $SESSION_NAME:1 "rviz -d src/crowd_surfer/configs/config.rviz" C-m
 
-tmux new-window -t $SESSION_NAME -n "play_bag"
-tmux send-keys -t $SESSION_NAME:2 "rosbag play src/crowd_surfer/bags/11.bag" C-m
+tmux new-window -t $SESSION_NAME -n "simulation"
+tmux send-keys -t $SESSION_NAME:2 "source devel/setup.bash && conda activate crowdsurfer && roslaunch crowdsurfer_ros global_nav.launch" C-m
 
 tmux new-window -t $SESSION_NAME -n "inference"
-tmux send-keys -t $SESSION_NAME:3 "source ~/miniconda3/bin/activate && conda activate crowdsurfer && python3 src/crowd_surfer/run/open_loop_bag.py" C-m
+tmux send-keys -t $SESSION_NAME:3 "source ~/miniconda3/bin/activate && conda activate crowdsurfer && source devel/setup.bash && python3 src/crowd_surfer/run/closed_loop_simulation.py"
 
 tmux attach -t $SESSION_NAME
