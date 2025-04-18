@@ -89,7 +89,7 @@ class Planner():
         self.num = 1000
         self.num_batch = 110
         self.maxiter = 1
-        self.maxiter_cem = 10
+        self.maxiter_cem = 20
         self.weight_track = 0.001
         self.weight_smoothness = 1
         self.way_point_shape = 1000
@@ -97,6 +97,8 @@ class Planner():
 
         self.num_obs_1 = 40
         self.num_obs_2 = 10
+
+        self.prob = mpc_non_dy.batch_crowd_nav(self.a_obs_1, self.b_obs_1, self.a_obs_2, self.b_obs_2, self.v_max, self.v_min, self.a_max, self.num_obs_1, self.num_obs_2, self.t_fin, self.num, self.num_batch, self.maxiter, self.maxiter_cem, self.weight_smoothness, self.weight_track, self.way_point_shape, self.v_des)
 
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.vqvae = VQVAE()
@@ -152,15 +154,13 @@ class Planner():
 
         rospy.loginfo("PixelCNN-VQVAE samples generated")
 
-        prob = mpc_non_dy.batch_crowd_nav(self.a_obs_1, self.b_obs_1, self.a_obs_2, self.b_obs_2, self.v_max, self.v_min, self.a_max, self.num_obs_1, self.num_obs_2, self.t_fin, self.num, self.num_batch, self.maxiter, self.maxiter_cem, self.weight_smoothness, self.weight_track, self.way_point_shape, self.v_des)
-
         key = random.PRNGKey(0)
 
-        arc_length, arc_vec, x_diff, y_diff =prob.path_spline(x_waypoint, y_waypoint)
+        arc_length, arc_vec, x_diff, y_diff = self.prob.path_spline(x_waypoint, y_waypoint)
 
         initial_state = jnp.hstack(( state_initial.x, state_initial.y, state_initial.vx, state_initial.vy, state_initial.ax, state_initial.ay)) 
 
-        x_guess_per, y_guess_per = self.compute_waypoints(c_x_pred, c_y_pred, prob.P_jax)
+        x_guess_per, y_guess_per = self.compute_waypoints(c_x_pred, c_y_pred, self.prob.P_jax)
         x_guess_per = x_guess_per.T
         y_guess_per = y_guess_per.T
 
@@ -169,26 +169,26 @@ class Planner():
 
         initial_state = jnp.hstack(( state_initial.x, state_initial.y, state_initial.vx, state_initial.vy, state_initial.ax, state_initial.ay ))
 
-        lamda_x = jnp.zeros((self.num_batch, prob.nvar))
-        lamda_y = jnp.zeros((self.num_batch, prob.nvar))
+        lamda_x = jnp.zeros((self.num_batch, self.prob.nvar))
+        lamda_y = jnp.zeros((self.num_batch, self.prob.nvar))
 
         vx_obs = 0
         vy_obs = 0
 
-        x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_proj, y_obs_trajectory_proj, x_obs_trajectory_dy, y_obs_trajectory_dy = prob.compute_obs_traj_prediction( jnp.asarray(obstacles.dynamic_x.numpy()).flatten(), jnp.asarray(obstacles.dynamic_y.numpy()).flatten(), obstacles.dynamic_vx.numpy(), obstacles.dynamic_vy.numpy(), jnp.asarray(obstacles.static_x.numpy()).flatten(), jnp.asarray(obstacles.static_y.numpy()).flatten(), vx_obs, vy_obs, initial_state[0], initial_state[1] ) ####### obstacle trajectory prediction
+        x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_proj, y_obs_trajectory_proj, x_obs_trajectory_dy, y_obs_trajectory_dy = self.prob.compute_obs_traj_prediction( jnp.asarray(obstacles.dynamic_x.numpy()).flatten(), jnp.asarray(obstacles.dynamic_y.numpy()).flatten(), obstacles.dynamic_vx.numpy(), obstacles.dynamic_vy.numpy(), jnp.asarray(obstacles.static_x.numpy()).flatten(), jnp.asarray(obstacles.static_y.numpy()).flatten(), vx_obs, vy_obs, initial_state[0], initial_state[1] ) ####### obstacle trajectory prediction
         
-        sol_x_bar, sol_y_bar, x_guess, y_guess,  xdot_guess, ydot_guess, xddot_guess, yddot_guess,c_mean, c_cov, x_fin, y_fin = prob.compute_traj_guess( initial_state, x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_dy, y_obs_trajectory_dy, self.v_des, x_waypoint, y_waypoint, arc_vec, x_guess_per, y_guess_per, x_diff, y_diff)
+        sol_x_bar, sol_y_bar, x_guess, y_guess,  xdot_guess, ydot_guess, xddot_guess, yddot_guess,c_mean, c_cov, x_fin, y_fin = self.prob.compute_traj_guess( initial_state, x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_dy, y_obs_trajectory_dy, self.v_des, x_waypoint, y_waypoint, arc_vec, x_guess_per, y_guess_per, x_diff, y_diff)
         
         x_fin = x_fin
         y_fin = y_fin  
 
         rospy.loginfo("Running CEM Optimisation")
-        x, y, c_x_best, c_y_best, x_best, y_best, x_guess_per , y_guess_per= prob.compute_cem(key, initial_state, x_fin, y_fin, lamda_x, lamda_y, x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_proj, y_obs_trajectory_proj, x_obs_trajectory_dy, y_obs_trajectory_dy,sol_x_bar, sol_y_bar, x_guess, y_guess,  xdot_guess, ydot_guess, xddot_guess, yddot_guess, x_waypoint,  y_waypoint, arc_vec, c_mean, c_cov )
+        x, y, c_x_best, c_y_best, x_best, y_best, x_guess_per , y_guess_per= self.prob.compute_cem(key, initial_state, x_fin, y_fin, lamda_x, lamda_y, x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_proj, y_obs_trajectory_proj, x_obs_trajectory_dy, y_obs_trajectory_dy,sol_x_bar, sol_y_bar, x_guess, y_guess,  xdot_guess, ydot_guess, xddot_guess, yddot_guess, x_waypoint,  y_waypoint, arc_vec, c_mean, c_cov )
 
         rospy.loginfo("Finished Trajectory Generation")
         # plot_plan(state_initial, state_goal, obstacles, x_guess_per, y_guess_per, filename='crowdsurfer_priest/best_traj.png')
 
-        vx_control, vy_control, ax_control, ay_control, norm_v_t, angle_v_t = prob.compute_controls(c_x_best*0.8, c_y_best*0.8)
+        vx_control, vy_control, ax_control, ay_control, norm_v_t, angle_v_t = self.prob.compute_controls(c_x_best*0.8, c_y_best*0.8)
         return c_x_best, c_y_best, x_best, y_best, x_vqvae, y_vqvae, vx_control, vy_control, ax_control, ay_control, norm_v_t, angle_v_t
 
 if __name__ == "__main__":
