@@ -217,29 +217,24 @@ class ClosedLoopSimulation():
     def convert_angle(self, angle):
         angle = np.unwrap(np.array([angle]), discont=np.pi, axis=0, period=6.283185307179586)
         return angle
+    
+    def update_local_goal(self):
+        try:
+            transform = self.tf_buffer.lookup_transform("base_link", "map", rospy.Time(0), rospy.Duration(1.0))
+            goal_in_base_link = do_transform_pose(self.global_goal_msg, transform)
+            self.global_goal_x = self.global_goal_msg.pose.position.x 
+            self.global_goal_y = self.global_goal_msg.pose.position.y 
+            self.local_goal_x = goal_in_base_link.pose.position.x 
+            self.local_goal_y = goal_in_base_link.pose.position.y 
+
+        except tf2_ros.TransformException as e:
+            rospy.logfatal(f"Could not transform goal in map frame to goal in local frame: {e}")
+            return
 
     def goal_callback(self, global_goal_msg):
         rospy.loginfo("Recieved goal")
         self.goal_reached = False
-        try:
-            transform = self.tf_buffer.lookup_transform(
-                "base_link",
-                global_goal_msg.header.frame_id,
-                rospy.Time(0),
-                rospy.Duration(1.0)
-            )
-
-            goal_in_base_link = do_transform_pose(global_goal_msg, transform)
-
-            self.global_goal_x = global_goal_msg.pose.position.x
-            self.global_goal_y = global_goal_msg.pose.position.y
-            self.local_goal_x = goal_in_base_link.pose.position.x
-            self.local_goal_y = goal_in_base_link.pose.position.y
-            rospy.loginfo(f"Goal transformed to base_link frame: {self.local_goal_x}, {self.local_goal_y}")
-
-        except tf2_ros.TransformException as e:
-            rospy.logfatal(f"Could not transform goal: {e}")
-            return
+        self.global_goal_msg = global_goal_msg
 
     def plan(self):
         if not self.goal_reached:
@@ -273,7 +268,7 @@ class ClosedLoopSimulation():
             rospy.loginfo(f"Global Goal {self.global_goal_x} {self.global_goal_y}")
             rospy.loginfo(f"Local Goal {self.local_goal_x} {self.local_goal_y}")
             c_x, c_y, norm_v_t, angle_v_t = self.infer_trajectories(state_initial, state_goal)
-            self.publish_cmd_vel(norm_v_t, angle_v_t)
+            #self.publish_cmd_vel(norm_v_t, angle_v_t)
 
             if (self.global_goal_x-self.current_x)**2 + (self.global_goal_y-self.current_y)**2 < 0.01:
                 self.goal_reached=True
