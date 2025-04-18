@@ -89,7 +89,7 @@ class Planner():
         self.num = 1000
         self.num_batch = 110
         self.maxiter = 1
-        self.maxiter_cem = 20
+        self.maxiter_cem = 25
         self.weight_track = 0.001
         self.weight_smoothness = 1
         self.way_point_shape = 1000

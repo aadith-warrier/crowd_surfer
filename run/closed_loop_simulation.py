@@ -235,6 +235,7 @@ class ClosedLoopSimulation():
         rospy.loginfo("Recieved goal")
         self.goal_reached = False
         self.global_goal_msg = global_goal_msg
+        self.update_local_goal()
 
     def plan(self):
         if not self.goal_reached:
@@ -261,6 +262,7 @@ class ClosedLoopSimulation():
 
             current_x = self.current_x
             current_y = self.current_y
+            self.update_local_goal()
 
             state_initial = State(0, 0, 0.1, 0, 0, 0)
             state_goal = State(self.local_goal_x, self.local_goal_y)
@@ -268,9 +270,9 @@ class ClosedLoopSimulation():
             rospy.loginfo(f"Global Goal {self.global_goal_x} {self.global_goal_y}")
             rospy.loginfo(f"Local Goal {self.local_goal_x} {self.local_goal_y}")
             c_x, c_y, norm_v_t, angle_v_t = self.infer_trajectories(state_initial, state_goal)
-            #self.publish_cmd_vel(norm_v_t, angle_v_t)
+            self.publish_cmd_vel(norm_v_t, angle_v_t)
 
-            if (self.global_goal_x-self.current_x)**2 + (self.global_goal_y-self.current_y)**2 < 0.01:
+            if (self.global_goal_x-self.current_x)**2 + (self.global_goal_y-self.current_y)**2 < 0.25:
                 self.goal_reached=True
         else:
             self.publish_zero_cmd_vel()
