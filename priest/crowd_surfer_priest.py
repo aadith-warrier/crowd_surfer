@@ -121,8 +121,6 @@ class Planner():
     def generate_trajectory(self, occupancy_grid, state_initial: State, state_goal:State, obstacles: Obstacles):
         
         rospy.loginfo("Starting Trajectory Generation")
-        x_waypoint = jnp.linspace(state_initial.x, state_goal.x, self.way_point_shape)
-        y_waypoint = jnp.linspace(state_initial.y, state_goal.y, self.way_point_shape)
 
         dynamic_obstacles_x_t = obstacles.dynamic_x[:, None] + obstacles.dynamic_x[:, None]*torch.linspace(0, -0.5, 5)
         dynamic_obstacles_y_t = obstacles.dynamic_y[:, None] + obstacles.dynamic_y[:, None]*torch.linspace(0, -0.5, 5)
@@ -134,6 +132,9 @@ class Planner():
                                           dynamic_obstacles_vy_t), dim=2).permute(1, 2, 0)
 
         heading = torch.atan2(torch.tensor([state_goal.y - state_initial.y]), torch.tensor([state_goal.x - state_initial.x])).unsqueeze(0).to(self.device)
+        theta_des = heading.cpu().numpy()
+        x_waypoint = jnp.linspace(state_initial.x, state_initial.x+self.prob.v_des*self.prob.t_fin*jnp.cos(theta_des), self.way_point_shape)
+        y_waypoint = jnp.linspace(state_initial.y, state_initial.y+self.prob.v_des*self.prob.t_fin*jnp.sin(theta_des), self.way_point_shape)
 
         occupancy_grid = torch.tensor(occupancy_grid).unsqueeze(0).unsqueeze(0).float().to(self.device)
         dynamic_obstacles = dynamic_obstacles.unsqueeze(0).float().to(self.device)
