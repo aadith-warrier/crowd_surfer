@@ -2,7 +2,7 @@ import os
 import rospy
 import tf2_ros
 
-from visualization_msgs.msg import MarkerArray
+from visualization_msgs.msg import MarkerArray, Marker
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import OccupancyGrid, Odometry
 from geometry_msgs.msg import Pose, PoseStamped, Twist
@@ -36,6 +36,8 @@ class ClosedLoopSimulation():
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         #publishers
+        self.static_obstacles_publisher = rospy.Publisher('/static_obs', MarkerArray)
+        self.dynamic_obstacles_publisher = rospy.Publisher('/dynamic_obs', MarkerArray)
         self.occupancy_grid_publisher = rospy.Publisher('/grid_map', OccupancyGrid)
         self.trajectory_publisher = rospy.Publisher('/pred_trajectory', Path, 10)
         self.sampled_trajectory_publisher_1 = rospy.Publisher('/sampled_trajectory_1', Path)
@@ -58,6 +60,8 @@ class ClosedLoopSimulation():
     def update_odometry(self, odom):
         self.current_x = odom.pose.pose.position.x
         self.current_y = odom.pose.pose.position.y
+        self.current_vx = odom.twist.twist.linear.x
+        self.current_vy = odom.twist.twist.linear.y
 
     def laser_scan_to_grid(self, scan, grid_size=60, resolution=0.1, max_range=30.0):
 
@@ -73,9 +77,14 @@ class ClosedLoopSimulation():
                 y = int(center + (r * np.sin(theta)) / resolution)
                 if 0 <= x < grid_size and 0 <= y < grid_size:
                     grid[y, x] = 100
-                    self.static_obstacles.append([x, y])
+                    self.static_obstacles.append([r*np.cos(theta), r*np.sin(theta)])
 
         self.static_obstacles = np.asarray(self.static_obstacles)
+        N = self.static_obstacles.shape[0]
+        self.static_obstacles = np.pad(self.static_obstacles,
+                                       pad_width=((0, max(0, 100 - N)), (0, 0)),  # pad rows only
+                                       mode='constant',
+                                       constant_values=0)
 
         self.occupancy_grid = grid
 
@@ -139,6 +148,77 @@ class ClosedLoopSimulation():
         self.dynamic_obstacles = torch.tensor(dynamic_obstacles).permute(1, 2, 0)
         return
 
+    def transform_base_link_to_map(self, position):
+        base_link_position = PoseStamped()
+        base_link_position.header.frame_id = "base_link"
+        base_link_position.header.stamp = rospy.Time.now()
+        base_link_position.pose.position.x = position[0]
+        base_link_position.pose.position.y = position[1]
+        base_link_position.pose.position.z = 0 
+
+        transform = self.tf_buffer.lookup_transform("map", "base_link", rospy.Time(0), rospy.Duration(1.0))
+        map_position = do_transform_pose(base_link_position, transform)
+        x = map_position.pose.position.x 
+        y = map_position.pose.position.y
+        z = map_position.pose.position.z
+        return x, y, z
+    
+    def create_marker(self, marker_id, position, color, scale=0.2, frame_id="base_link"):
+        x, y, z = self.transform_base_link_to_map(position)
+        marker = Marker()
+        marker.header.frame_id = frame_id
+        marker.header.stamp = rospy.Time.now()
+        marker.ns = "marker_array"
+        marker.id = marker_id
+        marker.type = Marker.SPHERE
+        marker.action = Marker.ADD
+
+        marker.pose.position.x = position[0]
+        marker.pose.position.y = position[1]
+        marker.pose.position.z = position[2]
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        marker.pose.orientation.w = 1.0
+
+        marker.scale.x = scale
+        marker.scale.y = scale
+        marker.scale.z = scale
+
+        marker.color.r = color[0]
+        marker.color.g = color[1]
+        marker.color.b = color[2]
+        marker.color.a = 1.0
+
+        marker.lifetime = rospy.Duration()
+
+        return marker
+
+    def visualise_obstacles(self, obstacles_dict):
+        static_x = obstacles_dict["static_x"]
+        static_y = obstacles_dict["static_y"]
+        dynamic_x = obstacles_dict["dynamic_x"]
+        dynamic_y = obstacles_dict["dynamic_y"]
+
+        static_x = static_x[:, 0]
+        static_y = static_y[:, 0]
+
+        dynamic_x = dynamic_x[:, 0]
+        dynamic_y = dynamic_y[:, 0]
+        
+        static_marker_array = MarkerArray()
+        # publish markers for static_obstacles
+        for i, (x, y) in enumerate(zip(static_x, static_y)):
+           static_marker_array.markers.append(self.create_marker(i, (x, y, 0), (0.0, 0.5, 1.0)))
+        self.static_obstacles_publisher.publish(static_marker_array)
+
+        dynamic_marker_array = MarkerArray()
+        #publish markers for dynamic obstacles
+        for i, (x, y) in enumerate(zip(dynamic_x, dynamic_y)):
+            dynamic_marker_array.markers.append(self.create_marker(100+i, (x, y, 0), (1.0, 0.0, 0.0)))
+        self.dynamic_obstacles_publisher.publish(dynamic_marker_array)
+        return
+
     def infer_trajectories(self, state_initial, state_final):
 
         if not hasattr(self, 'occupancy_grid'):
@@ -147,6 +227,7 @@ class ClosedLoopSimulation():
         if not hasattr(self, 'dynamic_obstacles'):
             rospy.logerr("Not recieved dynamic obstacles")
             return 0, 0, 0, 0
+
         try:
             obstacles = Obstacles(self.static_obstacles[:, 0], self.static_obstacles[:, 1], self.dynamic_obstacles[4, 0, :].numpy(), self.dynamic_obstacles[4, 1, :].numpy(), self.dynamic_obstacles[4, 2, :].numpy(), self.dynamic_obstacles[4, 3, :].numpy())
         except:
@@ -157,7 +238,10 @@ class ClosedLoopSimulation():
             print(self.dynamic_obstacles[4, 1, :].numpy())
             print(self.dynamic_obstacles[4, 2, :].numpy())
             print(self.dynamic_obstacles[4, 3, :].numpy())
-        c_x, c_y, x, y, x_vqvae, y_vqvae, vx_control, vy_control, ax_control, ay_control, norm_v_t, angle_v_t = self.planner.generate_trajectory(self.occupancy_grid, state_initial, state_final, obstacles)
+            return 0, 0, 0, 0
+
+        c_x, c_y, x, y, x_vqvae, y_vqvae, vx_control, vy_control, ax_control, ay_control, norm_v_t, angle_v_t, obstacles_dict = self.planner.generate_trajectory(self.occupancy_grid, state_initial, state_final, obstacles)
+        self.visualise_obstacles(obstacles_dict)
 
         x = np.asarray(x)
         y = np.asarray(y)
@@ -197,12 +281,14 @@ class ClosedLoopSimulation():
         v_t_control = norm_v_t*np.cos(zeta)
         omega_control = -zeta/(6*5*0.01)
 
-        cmd_vel.linear.x = v_t_control
-        cmd_vel.angular.z = omega_control
+        cmd_vel.linear.x = norm_v_t
+        cmd_vel.angular.z = angle_v_t
         
         self.cmd_vel_publisher.publish(cmd_vel)
         
-        rospy.loginfo(f"Published to cmd_vel {v_t_control} {omega_control}")
+        with open("planner_log_With.txt", 'a') as f:
+            f.write(f"{self.global_goal_x} {self.global_goal_y} {self.local_goal_x} {self.local_goal_y} {self.current_x} {self.current_y} {norm_v_t} {angle_v_t} \n")
+        rospy.loginfo(f"Published to cmd_vel {cmd_vel.linear.x} {cmd_vel.angular.z}")
         return
 
     def publish_zero_cmd_vel(self):
@@ -236,6 +322,7 @@ class ClosedLoopSimulation():
         self.goal_reached = False
         self.global_goal_msg = global_goal_msg
         self.update_local_goal()
+        self.rollout_num = 0
 
     def plan(self):
         if not self.goal_reached:
@@ -264,15 +351,18 @@ class ClosedLoopSimulation():
             current_y = self.current_y
             self.update_local_goal()
 
-            state_initial = State(0, 0, 0.1, 0, 0, 0)
+            state_initial = State(0, 0.1, self.current_vx, self.current_vy, 0, 0)
             state_goal = State(self.local_goal_x, self.local_goal_y)
             rospy.loginfo(f"Global Position {current_x} {current_y}")
             rospy.loginfo(f"Global Goal {self.global_goal_x} {self.global_goal_y}")
             rospy.loginfo(f"Local Goal {self.local_goal_x} {self.local_goal_y}")
             c_x, c_y, norm_v_t, angle_v_t = self.infer_trajectories(state_initial, state_goal)
             self.publish_cmd_vel(norm_v_t, angle_v_t)
-
-            if (self.global_goal_x-self.current_x)**2 + (self.global_goal_y-self.current_y)**2 < 0.25:
+            
+            #if self.rollout_num < 3:
+            #    self.publish_zero_cmd_vel()
+            self.rollout_num += 1
+            if (self.global_goal_x-self.current_x)**2 + (self.global_goal_y-self.current_y)**2 < 0.5:
                 self.goal_reached=True
         else:
             self.publish_zero_cmd_vel()

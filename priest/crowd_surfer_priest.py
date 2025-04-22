@@ -89,13 +89,13 @@ class Planner():
         self.num = 1000
         self.num_batch = 110
         self.maxiter = 1
-        self.maxiter_cem = 3
+        self.maxiter_cem = 10
         self.weight_track = 0.001
         self.weight_smoothness = 1
         self.way_point_shape = 1000
         self.v_des = 1
 
-        self.num_obs_1 = 40
+        self.num_obs_1 = 100
         self.num_obs_2 = 10
 
         self.prob = mpc_non_dy.batch_crowd_nav(self.a_obs_1, self.b_obs_1, self.a_obs_2, self.b_obs_2, self.v_max, self.v_min, self.a_max, self.num_obs_1, self.num_obs_2, self.t_fin, self.num, self.num_batch, self.maxiter, self.maxiter_cem, self.weight_smoothness, self.weight_track, self.way_point_shape, self.v_des)
@@ -132,9 +132,13 @@ class Planner():
                                           dynamic_obstacles_vy_t), dim=2).permute(1, 2, 0)
 
         heading = torch.atan2(torch.tensor([state_goal.y - state_initial.y]), torch.tensor([state_goal.x - state_initial.x])).unsqueeze(0).to(self.device)
+
         theta_des = heading.cpu().numpy()
+
         x_waypoint = jnp.linspace(state_initial.x, state_initial.x+self.prob.v_des*self.prob.t_fin*jnp.cos(theta_des), self.way_point_shape)
         y_waypoint = jnp.linspace(state_initial.y, state_initial.y+self.prob.v_des*self.prob.t_fin*jnp.sin(theta_des), self.way_point_shape)
+        x_waypoint = x_waypoint.squeeze()
+        y_waypoint = y_waypoint.squeeze()
 
         occupancy_grid = torch.tensor(occupancy_grid).unsqueeze(0).unsqueeze(0).float().to(self.device)
         dynamic_obstacles = dynamic_obstacles.unsqueeze(0).float().to(self.device)
@@ -157,6 +161,8 @@ class Planner():
 
         key = random.PRNGKey(0)
 
+        print(f"X Waypoints: {x_waypoint.squeeze().shape}")
+        print(f"Y Waypoints: {y_waypoint.squeeze().shape}")
         arc_length, arc_vec, x_diff, y_diff = self.prob.path_spline(x_waypoint, y_waypoint)
 
         initial_state = jnp.hstack(( state_initial.x, state_initial.y, state_initial.vx, state_initial.vy, state_initial.ax, state_initial.ay)) 
@@ -177,6 +183,10 @@ class Planner():
         vy_obs = 0
 
         x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_proj, y_obs_trajectory_proj, x_obs_trajectory_dy, y_obs_trajectory_dy = self.prob.compute_obs_traj_prediction( jnp.asarray(obstacles.dynamic_x.numpy()).flatten(), jnp.asarray(obstacles.dynamic_y.numpy()).flatten(), obstacles.dynamic_vx.numpy(), obstacles.dynamic_vy.numpy(), jnp.asarray(obstacles.static_x.numpy()).flatten(), jnp.asarray(obstacles.static_y.numpy()).flatten(), vx_obs, vy_obs, initial_state[0], initial_state[1] ) ####### obstacle trajectory prediction
+        obstacles_dict = {"static_x":x_obs_trajectory,
+                          "static_y":y_obs_trajectory,
+                          "dynamic_x":x_obs_trajectory_dy,
+                          "dynamic_y":y_obs_trajectory_dy}
         
         sol_x_bar, sol_y_bar, x_guess, y_guess,  xdot_guess, ydot_guess, xddot_guess, yddot_guess,c_mean, c_cov, x_fin, y_fin = self.prob.compute_traj_guess( initial_state, x_obs_trajectory, y_obs_trajectory, x_obs_trajectory_dy, y_obs_trajectory_dy, self.v_des, x_waypoint, y_waypoint, arc_vec, x_guess_per, y_guess_per, x_diff, y_diff)
         
@@ -190,7 +200,7 @@ class Planner():
         # plot_plan(state_initial, state_goal, obstacles, x_guess_per, y_guess_per, filename='crowdsurfer_priest/best_traj.png')
 
         vx_control, vy_control, ax_control, ay_control, norm_v_t, angle_v_t = self.prob.compute_controls(c_x_best*0.8, c_y_best*0.8)
-        return c_x_best, c_y_best, x_best, y_best, x_vqvae, y_vqvae, vx_control, vy_control, ax_control, ay_control, norm_v_t, angle_v_t
+        return c_x_best, c_y_best, x_best, y_best, x_vqvae, y_vqvae, vx_control, vy_control, ax_control, ay_control, norm_v_t, angle_v_t, obstacles_dict
 
 if __name__ == "__main__":
     # Number of obstacles
